@@ -475,12 +475,13 @@ struct BTree {
     int inner_max_entries = 0;
     int leaf_max_entries = 0;
     int node_cnt = 1;
+    int leaf_node_cnt = 0;
 
     while (!l.empty()) {
       NodeBase *top = l.front();
       if (top->type == PageType::BTreeInner) {
         auto node = reinterpret_cast<BTreeInner<Key> *>(top);
-        for (int i = 0; i < top->count; i++) {
+        for (int i = 0; i <= top->count; i++) {
           l.push_back(node->children[i]);
           node_cnt++;
         }
@@ -490,10 +491,11 @@ struct BTree {
         auto node = reinterpret_cast<BTreeLeaf<Key, Value> *>(top);
         size += node->getSize();
         leaf_max_entries = node->maxEntries;
+        leaf_node_cnt += node->count;
       }
       l.erase(l.begin());
     }
-    std::cout << "Inner max entries=" << inner_max_entries << std::endl
+    std::cout << "Inner max entries=" << inner_max_entries << "," << leaf_node_cnt << std::endl
               << "Leaf max entries=" << leaf_max_entries << std::endl
               << "Btree node count=" << node_cnt << std::endl;
     return size;
