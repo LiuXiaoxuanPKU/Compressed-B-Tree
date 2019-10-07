@@ -2,11 +2,11 @@
 #include <fstream>
 #include <vector>
 #include <sys/time.h>
-#include "include/CPSBTreeOLC.h"
+#include "include/CPSBTreeOLC_Op.h"
 #include "include/BTreeOLC.h"
 #include "include/tlx/btree_map.hpp"
 
-static const std::string email_dir = "/Users/xiaoxuanliu/Documents/Research/OPE_dataset/emails.txt";
+static const std::string email_dir = "/home/xiaoxual/research/OPE/datasets/emails.txt";
 
 double getNow() {
   struct timeval tv;
@@ -58,7 +58,7 @@ int main() {
   double btree_insert_start = getNow();
   for (const auto &email : emails) {
     insert_cnt++;
-    btree->insert(email, email);
+//    btree->insert(email, email);
   }
   double btree_insert_end = getNow();
   double btree_tput = insert_cnt / (btree_insert_end - btree_insert_start) / 1000000; // M items / s
@@ -93,6 +93,6 @@ int main() {
     cpstree->lookup(key, cpsvalue);
     btree->lookup(email, btreevalue);
     assert(cpsvalue.compare(email) == 0);
-    assert(btreevalue.compare(email) == 0);
+    //assert(btreevalue.compare(email) == 0);
   }
 }
