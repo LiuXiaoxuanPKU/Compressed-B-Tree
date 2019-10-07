@@ -248,9 +248,11 @@ class Key {
     // already overflow
     if (cur_len > POINTER_SIZE) {
       char *overflow_key = *reinterpret_cast<char **>(key);
-      overflow_key = (char *)realloc(overflow_key, cur_len + 1);
-      overflow_key[cur_len] = new_c;
-      memcpy(key, &overflow_key, POINTER_SIZE);
+      char *new_overflow_key = new char[cur_len + 1];
+      memcpy(new_overflow_key, overflow_key, cur_len);
+      new_overflow_key[cur_len] = new_c;
+      memcpy(key, &new_overflow_key, POINTER_SIZE);
+      delete []overflow_key;
     } else if (cur_len == POINTER_SIZE) {
       // overflow
       char *overflow_key = new char[POINTER_SIZE + 1];
@@ -270,10 +272,11 @@ class Key {
     // already overflow
     if (cur_len > POINTER_SIZE) {
       char *overflow_key = *reinterpret_cast<char **>(key);
-      overflow_key = (char *)realloc(overflow_key, cur_len + 1);
-      memmove(overflow_key + 1, overflow_key, cur_len);
-      overflow_key[0] = new_c;
-      memcpy(key, &overflow_key, POINTER_SIZE);
+      char *new_overflow_key = new char[cur_len + 1];
+      memcpy(new_overflow_key + 1, overflow_key, cur_len);
+      new_overflow_key[0] = new_c;
+      delete []overflow_key;
+      memcpy(key, &new_overflow_key, POINTER_SIZE);
     } else if (cur_len == POINTER_SIZE) {
       // overflow
       char *overflow_key = new char[POINTER_SIZE + 1];

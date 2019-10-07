@@ -172,6 +172,7 @@ struct BTreeInner : public BTreeInnerBase {
   BTreeInner() {
     count=0;
     type=typeMarker;
+    memset(keys, 0, maxEntries * sizeof(Key));
   }
 
   int64_t getSize() {
