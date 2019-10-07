@@ -2,7 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <sys/time.h>
-#include "include/CPSBTreeOLC.h"
+#include "include/CPSBTreeOLC_Op.h"
 #include "include/BTreeOLC.h"
 #include "include/tlx/btree_map.hpp"
 
@@ -29,6 +29,7 @@ int64_t loadKeys(const std::string& file_name,
     keys_shuffle.push_back(key);
     total_len += key.length();
   }
+  std::cout << "Num of keys:" << keys.size() << std::endl;
   std::random_shuffle(keys_shuffle.begin(), keys_shuffle.end());
   return total_len;
 }

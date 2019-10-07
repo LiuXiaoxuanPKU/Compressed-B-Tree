@@ -6,13 +6,14 @@
 #include <immintrin.h>
 #include <sched.h>
 #include <algorithm>
+#include <queue>
 
 namespace cpsbtreeolc {
 
 enum class PageType : uint8_t { BTreeInner=1, BTreeLeaf=2 };
 
 static const uint8_t POINTER_SIZE = 8;
-static const int MaxEntries = 100;
+static const int MaxEntries = 150;
 
 struct OptLock {
   std::atomic<uint64_t> typeVersionLockObsolete{0b100};
@@ -108,8 +109,16 @@ class Key {
   ~Key() {
     if (isOverFlow()) {
       const char *overflow_str = getOverFlowStr();
-//      std::cout << overflow_str << std::endl;
       delete [](getOverFlowStr());
+    }
+  }
+
+  void printKeyStr() {
+    const char *str = getKeyStr();
+    uint16_t str_len = getLen();
+    std::cout << str_len << " ";
+    for (int  i = 0; i < str_len; i++) {
+      std::cout << str[i];
     }
   }
 
@@ -137,6 +146,21 @@ class Key {
     return part_len_ & mask;
   }
 
+  bool concate(Key &right) {
+    const char *my_key = getKeyStr();
+    const char *right_str = right.getKeyStr();
+    uint16_t prefix_len = getLen();
+    uint16_t right_len = right.getLen();
+    uint16_t full_key_len = prefix_len + right_len;
+    char *re = new char[full_key_len];
+    memcpy(re, my_key, prefix_len);
+    memcpy(re + prefix_len, right_str, right_len);
+    re[full_key_len] = '\0';
+    setKeyStr(re, full_key_len);
+    delete []re;
+    return true;
+  }
+
   void setLen(uint16_t new_len) {
     part_len_ = new_len;
     if (new_len > POINTER_SIZE)
@@ -144,7 +168,7 @@ class Key {
   }
 
   int64_t getSize() { // in bytes
-    int64_t re = POINTER_SIZE + sizeof(uint8_t);
+    int64_t re = POINTER_SIZE + sizeof(uint16_t);
     if (isOverFlow())
       re += getLen();
     return re;
@@ -219,27 +243,55 @@ class Key {
     return i;
   }
 
-  void addHead(Key &prefix) {
-    uint16_t prefix_key_len = prefix.getLen();
+  void addTailChar(const char &new_c) {
     uint16_t cur_len = getLen();
-    char new_head_char = prefix.getKeyStr()[prefix_key_len - 1];
     // already overflow
     if (cur_len > POINTER_SIZE) {
       char *overflow_key = *reinterpret_cast<char **>(key);
-      memmove(overflow_key + 1, overflow_key, cur_len);
-      overflow_key[0] = new_head_char;
+      overflow_key = (char *)realloc(overflow_key, cur_len + 1);
+      overflow_key[cur_len] = new_c;
+      memcpy(key, &overflow_key, POINTER_SIZE);
     } else if (cur_len == POINTER_SIZE) {
       // overflow
       char *overflow_key = new char[POINTER_SIZE + 1];
-      overflow_key[0] = new_head_char;
+      overflow_key[cur_len] = new_c;
+      memcpy(overflow_key, key, POINTER_SIZE);
+      memcpy(key, &overflow_key, POINTER_SIZE);
+    } else {
+      // no overflow
+      memmove(key, key, cur_len);
+      key[cur_len] = new_c;
+    }
+    setLen(cur_len + 1);
+  }
+
+  void addHeadChar(const char &new_c) {
+    uint16_t cur_len = getLen();
+    // already overflow
+    if (cur_len > POINTER_SIZE) {
+      char *overflow_key = *reinterpret_cast<char **>(key);
+      overflow_key = (char *)realloc(overflow_key, cur_len + 1);
+      memmove(overflow_key + 1, overflow_key, cur_len);
+      overflow_key[0] = new_c;
+      memcpy(key, &overflow_key, POINTER_SIZE);
+    } else if (cur_len == POINTER_SIZE) {
+      // overflow
+      char *overflow_key = new char[POINTER_SIZE + 1];
+      overflow_key[0] = new_c;
       memcpy(overflow_key + 1, key, POINTER_SIZE);
       memcpy(key, &overflow_key, POINTER_SIZE);
     } else {
       // no overflow
       memmove(key + 1, key, cur_len);
-      key[0] = new_head_char;
+      key[0] = new_c;
     }
     setLen(cur_len + 1);
+  }
+
+  void addHead(Key &prefix) {
+    uint16_t prefix_key_len = prefix.getLen();
+    char new_head_char = prefix.getKeyStr()[prefix_key_len - 1];
+    addHeadChar(new_head_char);
   }
 
   void removeHead() {
@@ -283,8 +335,14 @@ struct BTreeLeaf : public BTreeLeafBase {
   bool isFull() { return count==MaxEntries; };
 
   int64_t getSize() {
-    int64_t key_size = prefix_key_.getSize();
-    return key_size + sizeof(Payload) * MaxEntries + key_size * MaxEntries;
+    int64_t prefix_size = prefix_key_.getSize();
+    int64_t key_size = 0;
+    int64_t normal_key_size = POINTER_SIZE + sizeof(uint16_t);
+    for (int i = 0; i < count; i++) {
+      key_size += keys[i].getSize();
+    }
+    key_size += (MaxEntries - count) * normal_key_size;
+    return key_size + sizeof(Payload) * MaxEntries + prefix_size;
   }
 
   unsigned lowerBound(Key &k) {
@@ -293,10 +351,6 @@ struct BTreeLeaf : public BTreeLeafBase {
     do {
       unsigned mid=((upper-lower)/2)+lower;
       Key mid_key = keys[mid];
-//      std::cout << "Mid key 0" << keys[0].getKeyStr() << std::endl;
-//      std::cout << "Mid key 1" << keys[1].getKeyStr() << std::endl;
-//      std::cout << "Mid key 2" << mid_key.getKeyStr() << std::endl;
-
       int cmp = k.compare(mid_key, prefix_key_);
       if (cmp < 0) {
         upper = mid;
@@ -309,16 +363,16 @@ struct BTreeLeaf : public BTreeLeafBase {
     return lower;
   }
 
-  unsigned lowerBoundBF(Key k) {
-    auto base=keys;
-    unsigned n=count;
-    while (n>1) {
-      const unsigned half=n/2;
-      base=(base[half]<k)?(base+half):base;
-      n-=half;
-    }
-    return (*base<k)+base-keys;
-  }
+//  unsigned lowerBoundBF(Key k) {
+//    auto base=keys;
+//    unsigned n=count;
+//    while (n>1) {
+//      const unsigned half=n/2;
+//      base=(base[half]<k)?(base+half):base;
+//      n-=half;
+//    }
+//    return (*base<k)+base-keys;
+//  }
 
   void insert(Key k,Payload p) {
     assert(count + 1 <= MaxEntries);
@@ -371,10 +425,6 @@ struct BTreeLeaf : public BTreeLeafBase {
       payloads[0] = p;
       count++;
     }
-//    for(int i = 0; i < count; i++) {
-//      std::cout << "Partial Key: " << keys[i].getKeyStr() << " " << keys[i].getLen() << std::endl;
-//    }
-//    std::cout << "New Prefix: " << prefix_key_.getKeyStr() << " " << prefix_key_.getLen() << std::endl;
   }
 
   BTreeLeaf* split(Key& sep) {
@@ -383,9 +433,55 @@ struct BTreeLeaf : public BTreeLeafBase {
     count = count-newLeaf->count;
     memcpy(newLeaf->keys, keys+count, sizeof(Key)*newLeaf->count);
     memcpy(newLeaf->payloads, payloads+count, sizeof(Payload)*newLeaf->count);
+
+    newLeaf->prefix_key_ = prefix_key_;
+
+
+    // update common prefix
+    int org_prefix_len = prefix_key_.getLen();
+    assert(count > 0);
+    Key tmp = keys[0];
+    for (int i = 1; i < count; i++) {
+      tmp.setLength(tmp.commonPrefix(keys[i]));
+    }
+
+    uint16_t  new_prefix_len = tmp.getLen();
+    for (int i = 0; i < new_prefix_len; i++) {
+      prefix_key_.addTailChar(keys[0].getKeyStr()[0]);
+      for (int j = 0; j < count; j++)
+        keys[j].removeHead();
+    }
+
+    assert(newLeaf->count > 0);
     // Set common prefix
-    newLeaf->prefix_key_.setKeyStr(prefix_key_.getKeyStr(), prefix_key_.getLen());
-    sep = keys[count-1];
+    Key tmp2 = newLeaf->keys[0];
+    for (int i = 1; i < newLeaf->count; i++) {
+      tmp2.setLength(tmp2.commonPrefix(newLeaf->keys[i]));
+    }
+
+    uint16_t  nl_new_prefix_len = tmp2.getLen();
+    for (int i = 0; i < nl_new_prefix_len; i++) {
+      newLeaf->prefix_key_.addTailChar(newLeaf->keys[0].getKeyStr()[0]);
+      for (int j = 0; j < newLeaf->count; j++)
+        newLeaf->keys[j].removeHead();
+    }
+
+
+    Key &right = keys[count - 1];
+    // Concatenate to get the full key
+    const char *prefix_str = prefix_key_.getKeyStr();
+    const char *right_str = right.getKeyStr();
+    char *full_key = new char[prefix_key_.getLen() + right.getLen() + 1];
+    uint16_t prefix_len = prefix_key_.getLen();
+    uint16_t right_len = right.getLen();
+    memcpy(full_key, prefix_str, prefix_len);
+    memcpy(full_key + prefix_len, right_str, right_len);
+    uint16_t full_key_len = prefix_len + right_len;
+    full_key[full_key_len] = '\0';
+
+    sep.setKeyStr(full_key, full_key_len);
+    delete []full_key;
+
     return newLeaf;
   }
 };
@@ -407,23 +503,27 @@ struct BTreeInner : public BTreeInnerBase {
 
   int64_t getSize() {
     int64_t key_size = prefix_key_.getSize();
-    return key_size + sizeof(NodeBase *) * MaxEntries + key_size * MaxEntries;
+    for (int i = 0; i < count; i++) {
+      key_size += keys[i].getSize();
+    }
+    key_size += (MaxEntries - count) * (POINTER_SIZE + sizeof(uint16_t));
+    return key_size + sizeof(NodeBase *) * MaxEntries;
   }
 
   bool isFull() { return count==(MaxEntries-1); };
 
-  unsigned lowerBoundBF(Key k) {
-    auto base=keys;
-    unsigned n=count;
-    while (n>1) {
-      const unsigned half=n/2;
-      int cmp = k.compare(base[half], prefix_key_);
-      base = (cmp < 0) ? (base + half) : base;
-      n -= half;
-    }
-    int cmp = k.compare(*base, prefix_key_);
-    return static_cast<unsigned int>((cmp < 0)+ base - keys);
-  }
+//  unsigned lowerBoundBF(Key k) {
+//    auto base=keys;
+//    unsigned n=count;
+//    while (n>1) {
+//      const unsigned half=n/2;
+//      int cmp = k.compare(base[half], prefix_key_);
+//      base = (cmp < 0) ? (base + half) : base;
+//      n -= half;
+//    }
+//    int cmp = k.compare(*base, prefix_key_);
+//    return static_cast<unsigned int>((cmp < 0)+ base - keys);
+//  }
 
   unsigned lowerBound(Key &k) {
     unsigned lower=0;
@@ -447,10 +547,55 @@ struct BTreeInner : public BTreeInnerBase {
     BTreeInner* newInner=new BTreeInner();
     newInner->count=count-(count/2);
     count=count-newInner->count-1;
-    sep=keys[count];
+
+
+    Key &right = keys[count];
+    const char *prefix_str = prefix_key_.getKeyStr();
+    const char *right_str = right.getKeyStr();
+    // Concatenate to get the full key
+    char *full_key = new char[prefix_key_.getLen() + right.getLen() + 1];
+    uint16_t prefix_len = prefix_key_.getLen();
+    uint16_t right_len = right.getLen();
+    memcpy(full_key, prefix_str, prefix_len);
+    memcpy(full_key + prefix_len, right_str, right_len);
+    uint16_t full_key_len = prefix_len + right_len;
+    full_key[full_key_len] = '\0';
+
+    sep.setKeyStr(full_key, full_key_len);
+    delete []full_key;
+
     memcpy(newInner->keys,keys+count+1,sizeof(Key)*(newInner->count+1));
     memcpy(newInner->children,children+count+1,sizeof(NodeBase*)*(newInner->count+1));
     newInner->prefix_key_ = prefix_key_;
+
+    // update common prefix
+    assert(count > 0);
+    Key tmp = keys[0];
+    for (int i = 1; i < count; i++) {
+      tmp.setLength(tmp.commonPrefix(keys[i]));
+    }
+
+    uint16_t  new_prefix_len = tmp.getLen();
+    for (int i = 0; i < new_prefix_len; i++) {
+      prefix_key_.addTailChar(keys[0].getKeyStr()[0]);
+      for (int j = 0; j < count; j++)
+        keys[j].removeHead();
+    }
+
+    assert(newInner->count > 0);
+    // Set common prefix
+    Key tmp2 = newInner->keys[0];
+    for (int i = 1; i < newInner->count; i++) {
+      tmp2.setLength(tmp2.commonPrefix(newInner->keys[i]));
+    }
+
+    uint16_t  nl_new_prefix_len = tmp2.getLen();
+    for (int i = 0; i < nl_new_prefix_len; i++) {
+      newInner->prefix_key_.addTailChar(newInner->keys[0].getKeyStr()[0]);
+      for (int j = 0; j < newInner->count; j++)
+        newInner->keys[j].removeHead();
+    }
+
     return newInner;
   }
 
@@ -474,14 +619,13 @@ struct BTreeInner : public BTreeInnerBase {
       // modify all the keys, add the last several bytes of prefix to those keys
       assert(new_prefix_len < prefix_key_.getLen());
       uint16_t prefix_len = prefix_key_.getLen();
-      prefix_key_.setLength(static_cast<uint16_t>(new_prefix_len));
       for (int i = new_prefix_len; i < prefix_len; i++) {
         for (int j = 0; j < count; j++) {
           if (j == pos)
             continue;
           keys[j].addHead(prefix_key_);
         }
-        prefix_key_.removeHead();
+        prefix_key_.setLength(prefix_key_.getLen() - 1);
       }
     }
     std::swap(children[pos],children[pos+1]);
@@ -730,26 +874,39 @@ struct BTree {
   int64_t getSize() {
     int64_t size = 0;
     NodeBase *node = root;
-    std::vector<NodeBase *> l;
-    l.push_back(root);
+    std::queue<NodeBase *> q;
+    q.push(root);
     int node_cnt = 1;
+    int64_t prefix_byte_size = 0;
+    int64_t prefix_num_size = 0;
 
-    while (!l.empty()) {
-      NodeBase *top = l.front();
+    int64_t inner_key_num = 0;
+
+    while (!q.empty()) {
+      NodeBase *top = q.front();
       if (top->type == PageType::BTreeInner) {
         auto node = reinterpret_cast<BTreeInner *>(top);
         size += node->getSize();
-        for (int i = 0; i < node->count; i++) {
-          l.push_back(node->children[i]);
+        prefix_byte_size += node->prefix_key_.getLen() * node->count;
+        prefix_num_size += node->prefix_key_.getLen();
+        for (int i = 0; i <= node->count; i++) {
+          q.push(node->children[i]);
           node_cnt++;
         }
       } else {
         auto node = reinterpret_cast<BTreeLeaf<Value> *>(top);
+        prefix_byte_size += node->prefix_key_.getLen() * node->count;
+        prefix_num_size += node->prefix_key_.getLen();
         size += node->getSize();
+        inner_key_num += node->count;
       }
-      l.erase(l.begin());
+      q.pop();
     }
-    std::cout << "CPS Btree Node Num=" << node_cnt << std::endl;
+    std::cout << "Inner Key Num = " << inner_key_num << std::endl;
+    std::cout << "CPS Btree Node Num = " << node_cnt << std::endl;
+    std::cout << "Prefix byte Size = " << prefix_byte_size << std::endl;
+    std::cout << "Prefix num Size = " << prefix_num_size << std::endl;
+    std::cout << "Average prefix len = " << prefix_num_size * 1.0 / node_cnt << std::endl;
     return size;
   }
 
