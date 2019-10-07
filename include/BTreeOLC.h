@@ -93,6 +93,8 @@ struct BTreeLeaf : public BTreeLeafBase {
   BTreeLeaf() {
     count=0;
     type=typeMarker;
+    memset(keys, 0, maxEntries * sizeof(Key));
+    memset(payloads, 0, maxEntries * sizeof(Payload));
   }
 
   int64_t getSize() {
@@ -173,6 +175,7 @@ struct BTreeInner : public BTreeInnerBase {
     count=0;
     type=typeMarker;
     memset(keys, 0, maxEntries * sizeof(Key));
+    memset(children, 0, maxEntries * sizeof(NodeBase*));
   }
 
   int64_t getSize() {

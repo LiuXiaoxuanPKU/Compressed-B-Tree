@@ -13,7 +13,7 @@ namespace cpsbtreeolc {
 enum class PageType : uint8_t { BTreeInner=1, BTreeLeaf=2 };
 
 static const uint8_t POINTER_SIZE = 8;
-static const int MaxEntries = 150;
+static const int MaxEntries = 100;
 
 struct OptLock {
   std::atomic<uint64_t> typeVersionLockObsolete{0b100};
@@ -883,7 +883,7 @@ struct BTree {
     int64_t prefix_byte_size = 0;
     int64_t prefix_num_size = 0;
 
-    int64_t inner_key_num = 0;
+    int64_t leaf_key_num = 0;
 
     while (!q.empty()) {
       NodeBase *top = q.front();
@@ -901,11 +901,11 @@ struct BTree {
         prefix_byte_size += node->prefix_key_.getLen() * node->count;
         prefix_num_size += node->prefix_key_.getLen();
         size += node->getSize();
-        inner_key_num += node->count;
+        leaf_key_num += node->count;
       }
       q.pop();
     }
-    std::cout << "Inner Key Num = " << inner_key_num << std::endl;
+    std::cout << "Leaf Key Num = " << leaf_key_num << std::endl;
     std::cout << "CPS Btree Node Num = " << node_cnt << std::endl;
     std::cout << "Prefix byte Size = " << prefix_byte_size << std::endl;
     std::cout << "Prefix num Size = " << prefix_num_size << std::endl;
