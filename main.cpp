@@ -6,7 +6,7 @@
 #include "include/BTreeOLC.h"
 #include "include/tlx/btree_map.hpp"
 
-static const std::string email_dir = "/home/xiaoxual/research/OPE/datasets/emails.txt";
+static const std::string email_dir = "/Users/xiaoxuanliu/Documents/Research/OPE/datasets/emails.txt";
 
 double getNow() {
   struct timeval tv;
@@ -34,6 +34,8 @@ int64_t loadKeys(const std::string& file_name,
   return total_len;
 }
 
+
+
 int main() {
   std::vector<std::string> emails;
   std::vector<std::string> emails_shuffle;
@@ -59,7 +61,7 @@ int main() {
   double btree_insert_start = getNow();
   for (const auto &email : emails) {
     insert_cnt++;
-//    btree->insert(email, email);
+    btree->insert(email, email);
   }
   double btree_insert_end = getNow();
   double btree_tput = insert_cnt / (btree_insert_end - btree_insert_start) / 1000000; // M items / s
@@ -77,23 +79,52 @@ int main() {
   int64_t btree_size = btree->getSize() + total_key_len;
   int64_t tlxbtree_size = 256 * tlx_btree->get_stats().nodes() + total_key_len;
   std::cout << total_key_len << "\nCompressed BTree = " << cpstree_size << std::endl
-                          << "Compressed BTree Throughput = " << cps_tput << " M items/s " << std::endl
+                          << "Compressed BTree Insert Throughput = " << cps_tput << " M items/s " << std::endl
                           << "Victor BTree=" << btree_size << std::endl
-                          << "Victor BTree Throughput = " << btree_tput << " M items/s " << std::endl
+                          << "Victor BTree Insert Throughput = " << btree_tput << " M items/s " << std::endl
                           << "TLXBTree=" << tlxbtree_size << std::endl
-                          << "TLXBTree Throughput = " << tlxbtree_tput << " M items/s " << std::endl;
+                          << "TLXBTree Insert Throughput = " << tlxbtree_tput << " M items/s " << std::endl;
 
-  int cnt = 0;
+  /*******************************************LOOKUP**********************************************************/
+  int lookup_cnt = 0;
+  double cps_lookup_start = getNow();
   for (const auto &email : emails_shuffle) {
-    cnt += 1;
-//    if (cnt % 10000 == 0) std::cout << cnt << std::endl;
+    lookup_cnt++;
     std::string cpsvalue;
-    std::string btreevalue;
     cpsbtreeolc::Key key;
     key.setKeyStr(email.c_str(), email.length());
     cpstree->lookup(key, cpsvalue);
-    btree->lookup(email, btreevalue);
     assert(cpsvalue.compare(email) == 0);
-    //assert(btreevalue.compare(email) == 0);
   }
+  double cps_lookup_end = getNow();
+  double cps_lookup_tput = lookup_cnt / (cps_lookup_end - cps_lookup_start) / 1000000;
+
+  lookup_cnt = 0;
+  double victor_lookup_start = getNow();
+  for (const auto &email : emails_shuffle) {
+    lookup_cnt++;
+    std::string btreevalue;
+    btree->lookup(email, btreevalue);
+    assert(btreevalue.compare(email) == 0);
+  }
+  double victor_lookup_end = getNow();
+  double victor_lookup_tput = lookup_cnt / (victor_lookup_end - victor_lookup_start) / 1000000;
+
+  lookup_cnt = 0;
+  double tlx_lookup_start = getNow();
+  for (const auto &email : emails_shuffle) {
+    lookup_cnt++;
+    std::string tlxvalue;
+    cpsbtreeolc::Key key;
+    auto it = tlx_btree->find(email);
+    assert((it->second).compare(email) == 0);
+  }
+  double tlx_lookup_end = getNow();
+  double tlx_lookup_tput = lookup_cnt / (tlx_lookup_end - tlx_lookup_start) / 1000000;
+
+  std::cout << "Lookup Throughput" << std::endl;
+  std::cout << "Compressed B tree=" << cps_lookup_tput << " M items/s" << std::endl;
+  std::cout << "Victor B tree=" << victor_lookup_tput << " M items/s" << std::endl;
+  std::cout << "TLX B tree=" << tlx_lookup_tput << " M items/s" << std::endl;
+
 }
