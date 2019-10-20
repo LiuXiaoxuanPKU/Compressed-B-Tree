@@ -190,9 +190,8 @@ class Key {
     if (isOverFlow()) delete [](getOverFlowStr());
 
     if (len > POINTER_SIZE) {
-      char *overflow_key = new char[len + 1];
+      char *overflow_key = new char[len];
       memcpy(overflow_key, str, len);
-      overflow_key[len] = '\0';
       memcpy(key, &overflow_key, POINTER_SIZE);
     } else {
       memcpy(key, str, len);
