@@ -495,6 +495,12 @@ struct BTreeInner : public BTreeInnerBase {
     type=typeMarker;
   }
 
+  ~BTreeInner(){
+    for (int i = 0; i < (int)count; i++) {
+      delete children[i];
+    }
+  }
+
   int64_t getSize() {
     int64_t key_size = prefix_key_.getSize();
     for (int i = 0; i < count; i++) {
@@ -628,6 +634,10 @@ struct BTree {
 
   BTree() {
     root = new BTreeLeaf<Value>();
+  }
+
+  ~BTree() {
+    delete root;
   }
 
   void makeRoot(Key k,NodeBase* leftChild,NodeBase* rightChild) {
