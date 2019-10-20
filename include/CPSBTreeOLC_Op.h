@@ -103,6 +103,9 @@ class Key {
   }
 
   Key &operator = (const Key &right) {
+    if (isOverFlow()) {
+      delete [](getOverFlowStr());
+    }
     part_len_ = 0;
     memset(key, 0, POINTER_SIZE);
     setKeyStr(right.getKeyStr(), right.getLen());
@@ -187,7 +190,9 @@ class Key {
 
   void setKeyStr(const char *str, uint16_t len) {
     assert(getLen() < (1<<15));
-    if (isOverFlow()) delete [](getOverFlowStr());
+    if (isOverFlow()) {
+      delete [](getOverFlowStr());
+    }
 
     if (len > POINTER_SIZE) {
       char *overflow_key = new char[len];
@@ -626,6 +631,7 @@ struct BTree {
   }
 
   void makeRoot(Key k,NodeBase* leftChild,NodeBase* rightChild) {
+    delete root;
     auto inner = new BTreeInner();
     inner->count = 1;
     inner->keys[0] = k;
