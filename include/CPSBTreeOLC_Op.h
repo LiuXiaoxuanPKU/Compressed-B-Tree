@@ -413,7 +413,7 @@ struct BTreeLeaf : public BTreeLeafBase {
         uint16_t prefix_len = prefix_key_.getLen();
         for (int i = new_prefix_len; i < prefix_len; i++) {
           for (int j = 0; j < count; j++) {
-            if (j == pos)
+            if (j == (int)pos)
               continue;
             keys[j].addHead(prefix_key_);
           }
