@@ -639,7 +639,6 @@ struct BTree {
   }
 
   void makeRoot(Key k,NodeBase* leftChild,NodeBase* rightChild) {
-    delete root;
     auto inner = new BTreeInner();
     inner->count = 1;
     inner->keys[0] = k;
