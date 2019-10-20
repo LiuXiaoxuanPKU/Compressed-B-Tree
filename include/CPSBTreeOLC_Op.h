@@ -111,7 +111,6 @@ class Key {
 
   ~Key() {
     if (isOverFlow()) {
-      const char *overflow_str = getOverFlowStr();
       delete [](getOverFlowStr());
     }
   }
@@ -213,9 +212,6 @@ class Key {
     char *my_str = new char[mylen + 1];
     memcpy(my_str, getKeyStr(), mylen);
     my_str[mylen] = '\0';
-
-    const char *prefix_str = prefix.getKeyStr();
-    const char *right_str = right.getKeyStr();
 
     // Concatenate to get the full key
     Key full_key = prefix.concate(right);
@@ -397,7 +393,7 @@ struct BTreeLeaf : public BTreeLeafBase {
         return;
       }
 
-      for (int i = count; i > pos; i--) {
+      for (int i = count; i > (int)pos; i--) {
         keys[i] = keys[i-1];
         payloads[i] = payloads[i-1];
       }
@@ -417,7 +413,7 @@ struct BTreeLeaf : public BTreeLeafBase {
         uint16_t prefix_len = prefix_key_.getLen();
         for (int i = new_prefix_len; i < prefix_len; i++) {
           for (int j = 0; j < count; j++) {
-            if (j == pos)
+            if (j == (int)pos)
               continue;
             keys[j].addHead(prefix_key_);
           }
@@ -445,7 +441,6 @@ struct BTreeLeaf : public BTreeLeafBase {
     }
 
     // update common prefix
-    int org_prefix_len = prefix_key_.getLen();
     assert(count > 0);
     Key tmp = keys[0];
     for (int i = 1; i < count; i++) {
@@ -545,8 +540,6 @@ struct BTreeInner : public BTreeInnerBase {
 
 
     Key &right = keys[count];
-    const char *prefix_str = prefix_key_.getKeyStr();
-    const char *right_str = right.getKeyStr();
     // Concatenate to get the full key
     sep = prefix_key_.concate(right);
 
@@ -591,7 +584,7 @@ struct BTreeInner : public BTreeInnerBase {
   void insert(Key k,NodeBase* child) {
     assert(count <= MaxEntries - 1);
     unsigned pos=lowerBound(k);
-    for (int i = count + 1; i > pos; i--) {
+    for (int i = count + 1; i > (int)pos; i--) {
       keys[i] = keys[i-1];
     }
 
@@ -613,7 +606,7 @@ struct BTreeInner : public BTreeInnerBase {
       uint16_t prefix_len = prefix_key_.getLen();
       for (int i = new_prefix_len; i < prefix_len; i++) {
         for (int j = 0; j < count; j++) {
-          if (j == pos)
+          if (j == (int)pos)
             continue;
           keys[j].addHead(prefix_key_);
         }
@@ -705,7 +698,6 @@ struct BTree {
 
       parent = inner;
       versionParent = versionNode;
-      int c = inner->lowerBound(k);
 
       node = inner->children[inner->lowerBound(k)];
       inner->checkOrRestart(versionNode, needRestart);
