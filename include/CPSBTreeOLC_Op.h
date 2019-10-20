@@ -106,8 +106,6 @@ class Key {
     if (isOverFlow()) {
       delete [](getOverFlowStr());
     }
-    part_len_ = 0;
-    memset(key, 0, POINTER_SIZE);
     setKeyStr(right.getKeyStr(), right.getLen());
     return *this;
   }
