@@ -103,9 +103,10 @@ class Key {
   }
 
   Key &operator = (const Key &right) {
-    if (isOverFlow()) {
-      delete [](getOverFlowStr());
-    }
+//    if (isOverFlow()) {
+//      delete [](getOverFlowStr());
+//      part_len_ = 0;
+//    }
     setKeyStr(right.getKeyStr(), right.getLen());
     return *this;
   }
@@ -113,6 +114,7 @@ class Key {
   ~Key() {
     if (isOverFlow()) {
       delete [](getOverFlowStr());
+      part_len_ = 0;
     }
   }
 
@@ -320,16 +322,17 @@ class Key {
   }
 };
 
-template<class Payload>
 struct BTreeLeaf : public BTreeLeafBase {
 
   Key prefix_key_;
   Key keys[MaxLeafEntries];
-  Payload payloads[MaxLeafEntries];
+  std::string payloads[MaxLeafEntries];
 
   BTreeLeaf() {
     count=0;
     type=typeMarker;
+    memset(payloads, 0, sizeof(std::string) * MaxEntries);
+    memset(keys, 0, sizeof(Key) * MaxEntries);
   }
 
   bool isFull() { return count==MaxLeafEntries; };
@@ -343,7 +346,7 @@ struct BTreeLeaf : public BTreeLeafBase {
     }
     key_size += (MaxLeafEntries - count) * normal_key_size;
     leaf_waste_byte += (MaxLeafEntries - count) * normal_key_size;
-    return key_size + sizeof(Payload) * MaxLeafEntries + prefix_size;
+    return key_size + sizeof(std::string) * MaxLeafEntries + prefix_size;
   }
 
   // first index >= k
@@ -376,7 +379,7 @@ struct BTreeLeaf : public BTreeLeafBase {
 //    return (*base<k)+base-keys;
 //  }
 
-  void insert(Key k,Payload p) {
+  void insert(Key &k,std::string &p) {
     assert(count + 1 <= MaxLeafEntries);
     if (count) {
       unsigned pos = lowerBound(k);
@@ -404,7 +407,7 @@ struct BTreeLeaf : public BTreeLeafBase {
       uint16_t new_prefix_len = k.commonPrefix(prefix_key_);
       k.chunkBeginning(new_prefix_len);
       keys[pos] = k;
-      payloads[pos] = p;
+      payloads[pos] = p.c_str();
       count++;
       // decide if we need to modify all the other keys
       if (new_prefix_len == prefix_key_.getLen()) {
@@ -426,7 +429,7 @@ struct BTreeLeaf : public BTreeLeafBase {
       prefix_key_.setKeyStr(k.getKeyStr(), k.getLen());
       k.setKeyStr("", 0);
       keys[0] = k;
-      payloads[0] = p;
+      payloads[0] = p.c_str();
       count++;
     }
   }
@@ -439,7 +442,7 @@ struct BTreeLeaf : public BTreeLeafBase {
     newLeaf->prefix_key_ = prefix_key_;
 
     for (int i = 0; i < newLeaf->count; i++) {
-      newLeaf->payloads[i] = payloads[i + count];
+      newLeaf->payloads[i] = payloads[i + count].c_str();
     }
 
     // update common prefix
@@ -491,6 +494,8 @@ struct BTreeInner : public BTreeInnerBase {
   BTreeInner() {
     count=0;
     type=typeMarker;
+    memset(children, 0, sizeof(NodeBase *) * MaxEntries);
+    memset(keys, 0, sizeof(Key) * MaxEntries);
   }
 
   ~BTreeInner(){
@@ -626,12 +631,11 @@ struct BTreeInner : public BTreeInnerBase {
 };
 
 
-template<class Value>
 struct BTree {
   std::atomic<NodeBase*> root;
 
   BTree() {
-    root = new BTreeLeaf<Value>();
+    root = new BTreeLeaf();
   }
 
   ~BTree() {
@@ -654,7 +658,7 @@ struct BTree {
       _mm_pause();
   }
 
-  void insert(Key k, Value v) {
+  void insert(Key &k, std::string &v) {
     int restartCount = 0;
     restart:
     if (restartCount++)
@@ -718,7 +722,7 @@ struct BTree {
       if (needRestart) goto restart;
     }
 
-    auto leaf = static_cast<BTreeLeaf<Value>*>(node);
+    auto leaf = static_cast<BTreeLeaf *>(node);
 
     // Split leaf if full
     if (leaf->count == MaxLeafEntries) {
@@ -737,7 +741,7 @@ struct BTree {
         goto restart;
       }
       // Split
-      Key sep; BTreeLeaf<Value>* newLeaf = leaf->split(sep);
+      Key sep; BTreeLeaf *newLeaf = leaf->split(sep);
       if (parent)
         parent->insert(sep, newLeaf);
       else
@@ -764,7 +768,7 @@ struct BTree {
     }
   }
 
-  bool lookup(Key k, Value& result) {
+  bool lookup(Key k, std::string &result) {
     int restartCount = 0;
     restart:
     if (restartCount++)
@@ -797,7 +801,7 @@ struct BTree {
       if (needRestart) goto restart;
     }
 
-    BTreeLeaf<Value>* leaf = static_cast<BTreeLeaf<Value>*>(node);
+    BTreeLeaf *leaf = static_cast<BTreeLeaf *>(node);
     unsigned pos = leaf->lowerBound(k);
     bool success = false;
     int cmp = k.compare(leaf->keys[pos], leaf->prefix_key_);
@@ -815,7 +819,7 @@ struct BTree {
     return success;
   }
 
-  uint64_t scan(Key k, int range, Value* output) {
+  uint64_t scan(Key k, int range, std::string *output) {
     int restartCount = 0;
     restart:
     if (restartCount++)
@@ -848,13 +852,13 @@ struct BTree {
       if (needRestart) goto restart;
     }
 
-    BTreeLeaf<Value>* leaf = static_cast<BTreeLeaf<Value>*>(node);
+    BTreeLeaf *leaf = static_cast<BTreeLeaf *>(node);
     unsigned pos = leaf->lowerBound(k);
     int count = 0;
     for (unsigned i=pos; i<leaf->count; i++) {
       if (count==range)
         break;
-      output[count++] = leaf->payloads[i];
+      output[count++] = leaf->payloads[i].c_str();
     }
 
     if (parent) {
@@ -906,7 +910,7 @@ struct BTree {
           node_cnt++;
         }
       } else {
-        auto node = reinterpret_cast<BTreeLeaf<Value> *>(top);
+        auto node = reinterpret_cast<BTreeLeaf *>(top);
         prefix_size += node->prefix_key_.getSize();
 
         prefix_byte_size += node->prefix_key_.getLen() * node->count;

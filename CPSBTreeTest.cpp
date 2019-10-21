@@ -41,19 +41,16 @@ int main() {
   std::vector<std::string> emails_shuffle;
   int64_t total_key_len = 0;
   loadKeys(email_dir, emails, emails_shuffle, total_key_len);
-  auto cpstree = new cpsbtreeolc::BTree<std::string>();
+  auto cpstree = new cpsbtreeolc::BTree();
   auto btree = new btreeolc::BTree<std::string, std::string>();
   typedef tlx::btree_map<std::string, std::string, std::less<std::string> > btree_type;
   btree_type* tlx_btree = new btree_type();
 
   int insert_cnt = 0;
   double cps_insert_start = getNow();
-  for (const auto &email : emails_shuffle) {
+  for (auto &email : emails_shuffle) {
     insert_cnt++;
     cpsbtreeolc::Key key;
-    if (email.compare("4.paco.@jhoovler") == 0) {
-      std::cout << "test" << std::endl;
-    }
     key.setKeyStr(email.c_str(), email.length());
     cpstree->insert(key, email);
   }
