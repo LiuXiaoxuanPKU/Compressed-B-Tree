@@ -13,8 +13,8 @@ namespace cpsbtreeolc {
 enum class PageType : uint8_t { BTreeInner=1, BTreeLeaf=2 };
 
 static const uint8_t POINTER_SIZE = 8;
-static const int MaxEntries = 540;
-static const int MaxLeafEntries = 540;
+static const int MaxEntries = 20;
+static const int MaxLeafEntries = 20;
 static int64_t leaf_waste_byte = 0;
 
 struct OptLock {
@@ -333,7 +333,6 @@ struct BTreeLeaf : public BTreeLeafBase {
   BTreeLeaf() {
     count=0;
     type=typeMarker;
-    memset(payloads, 0, sizeof(std::string) * MaxEntries);
     memset(keys, 0, sizeof(Key) * MaxEntries);
   }
 
@@ -401,9 +400,6 @@ struct BTreeLeaf : public BTreeLeafBase {
       }
 
       for (int i = count; i > (int)pos; i--) {
-        if (i == count) {
-          keys[i].setLen(0);
-        }
         keys[i] = keys[i-1];
         payloads[i] = payloads[i-1];
       }
@@ -444,6 +440,7 @@ struct BTreeLeaf : public BTreeLeafBase {
     newLeaf->count = count-(count/2);
     count = count-newLeaf->count;
     memcpy(newLeaf->keys, keys+count, sizeof(Key)*newLeaf->count);
+    memset(keys + count, 0, sizeof(Key)*newLeaf->count);
     newLeaf->prefix_key_ = prefix_key_;
 
     for (int i = 0; i < newLeaf->count; i++) {
@@ -562,10 +559,11 @@ struct BTreeInner : public BTreeInnerBase {
     // Concatenate to get the full key
     sep = prefix_key_.concate(right);
 
-//    memcpy(newInner->keys,keys+count+1,sizeof(Key)*(newInner->count+1));
-    for (int i = 0; i < newInner->count + 1; i++) {
-      newInner->keys[i] = keys[i + count + 1];
-    }
+    memcpy(newInner->keys,keys+count+1,sizeof(Key)*(newInner->count+1));
+    memset(keys + count + 1, 0, sizeof(Key) * (newInner->count+1));
+//    for (int i = 0; i < newInner->count + 1; i++) {
+//      newInner->keys[i] = keys[i + count + 1];
+//    }
     memcpy(newInner->children,children+count+1,sizeof(NodeBase*)*(newInner->count+1));
     newInner->prefix_key_ = prefix_key_;
 
