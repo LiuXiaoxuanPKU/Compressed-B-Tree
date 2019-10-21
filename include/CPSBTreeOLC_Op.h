@@ -505,6 +505,7 @@ struct BTreeInner : public BTreeInnerBase {
 
   ~BTreeInner(){
     for (int i = 0; i < (int)count; i++) {
+      std::cout << "***Delete " << i  << "/" << count << std::endl;
       delete children[i];
     }
   }
@@ -644,7 +645,11 @@ struct BTree {
   }
 
   ~BTree() {
-    delete root;
+    if (root.load()->type == PageType::BTreeInner) {
+      auto inner = reinterpret_cast<BTreeInner *>(root.load());
+      std::cout << "------Delete root" << std::endl;
+      delete inner;
+    }
   }
 
   void makeRoot(Key k,NodeBase* leftChild,NodeBase* rightChild) {

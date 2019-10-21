@@ -22,7 +22,7 @@ int64_t loadKeys(const std::string& file_name,
   std::string key;
   total_len = 0;
   int cnt = 0;
-  while (infile.good() && cnt < 1000000) {
+  while (infile.good() && cnt < 1000) {
     infile >> key;
     cnt++;
     keys.push_back(key);
@@ -122,6 +122,9 @@ int main() {
   double tlx_lookup_end = getNow();
   double tlx_lookup_tput = lookup_cnt / (tlx_lookup_end - tlx_lookup_start) / 1000000;
 
+  delete btree;
+  delete cpstree;
+  delete tlx_btree;
   std::cout << "Lookup Throughput" << std::endl;
   std::cout << "Compressed B tree=" << cps_lookup_tput << " M items/s" << std::endl;
   std::cout << "Victor B tree=" << victor_lookup_tput << " M items/s" << std::endl;
