@@ -501,7 +501,13 @@ struct BTreeInner : public BTreeInnerBase {
   }
 
   ~BTreeInner(){
-    for (int i = 0; i < (int)count; i++) {
+    for (int i = 0; i <= (int)count; i++) {
+      if (children[i]->type == PageType::BTreeInner) {
+        delete reinterpret_cast<BTreeInner *>(children[i]);
+      } else {
+        delete reinterpret_cast<BTreeLeaf *>(children[i]);
+      }
+
       std::cout << "***Delete " << i  << "/" << count << std::endl;
       delete children[i];
     }
