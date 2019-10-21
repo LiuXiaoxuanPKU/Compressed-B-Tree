@@ -178,6 +178,16 @@ struct BTreeInner : public BTreeInnerBase {
     memset(children, 0, maxEntries * sizeof(NodeBase*));
   }
 
+  ~BTreeInner() {
+    for (int i = 0; i <= (int)count; i++) {
+      if (children[i]->type == PageType::BTreeInner) {
+        delete reinterpret_cast<BTreeInner <Key> *>(children[i]);
+      } else {
+        delete children[i];
+      }
+    }
+  }
+
   int64_t getSize() {
     return sizeof(NodeBase *) * maxEntries + sizeof(Key) * maxEntries;
   }
@@ -241,6 +251,15 @@ struct BTree {
 
   BTree() {
     root = new BTreeLeaf<Key,Value>();
+  }
+
+  ~BTree() {
+     if (root.load()->type == PageType::BTreeInner) {
+      auto inner = reinterpret_cast<BTreeInner <Key> *>(root.load());
+      delete inner;
+    } else {
+      delete root;
+    }
   }
 
   void makeRoot(Key k,NodeBase* leftChild,NodeBase* rightChild) {
