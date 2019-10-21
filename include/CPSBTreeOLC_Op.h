@@ -103,10 +103,6 @@ class Key {
   }
 
   Key &operator = (const Key &right) {
-//    if (isOverFlow()) {
-//      delete [](getOverFlowStr());
-//      part_len_ = 0;
-//    }
     setKeyStr(right.getKeyStr(), right.getLen());
     return *this;
   }
@@ -507,9 +503,6 @@ struct BTreeInner : public BTreeInnerBase {
       } else {
         delete reinterpret_cast<BTreeLeaf *>(children[i]);
       }
-
-      std::cout << "***Delete " << i  << "/" << count << std::endl;
-      delete children[i];
     }
   }
 
@@ -651,7 +644,6 @@ struct BTree {
   ~BTree() {
     if (root.load()->type == PageType::BTreeInner) {
       auto inner = reinterpret_cast<BTreeInner *>(root.load());
-      std::cout << "------Delete root" << std::endl;
       delete inner;
     }
   }
