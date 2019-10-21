@@ -191,7 +191,9 @@ class Key {
   void setKeyStr(const char *str, uint16_t len) {
     assert(getLen() < (1<<15));
     if (isOverFlow()) {
+      //std::cout << "Here" << std::endl;
       delete [](getOverFlowStr());
+      part_len_ = 0;
     }
 
     if (len > POINTER_SIZE) {
@@ -399,6 +401,9 @@ struct BTreeLeaf : public BTreeLeafBase {
       }
 
       for (int i = count; i > (int)pos; i--) {
+        if (i == count) {
+          keys[i].setLen(0);
+        }
         keys[i] = keys[i-1];
         payloads[i] = payloads[i-1];
       }
