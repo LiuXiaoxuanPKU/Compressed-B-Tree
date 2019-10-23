@@ -7,14 +7,16 @@
 #include <sched.h>
 #include <algorithm>
 #include <queue>
+#include <string>
+#include <utility>
 
 namespace cpsbtreeolc {
 
 enum class PageType : uint8_t { BTreeInner=1, BTreeLeaf=2 };
 
 static const uint8_t POINTER_SIZE = 8;
-static const int MaxEntries = 20;
-static const int MaxLeafEntries = 20;
+static const int MaxEntries = 50;
+static const int MaxLeafEntries = 50;
 static int64_t leaf_waste_byte = 0;
 
 struct OptLock {
@@ -178,7 +180,7 @@ class Key {
   void chunkToLength(uint16_t new_len) {
     if (getLen() > POINTER_SIZE && new_len <= POINTER_SIZE) {
       const char *overflow_str = getOverFlowStr();
-      memmove(key, overflow_str, new_len);
+      memcpy(key, overflow_str, new_len);
       delete []overflow_str;
     }
     setLen(new_len);
@@ -320,11 +322,12 @@ class Key {
   }
 };
 
+template <class Payload>
 struct BTreeLeaf : public BTreeLeafBase {
 
   Key prefix_key_;
   Key keys[MaxLeafEntries];
-  std::string payloads[MaxLeafEntries];
+  Payload payloads[MaxLeafEntries];
 
   BTreeLeaf() {
     count=0;
@@ -376,7 +379,7 @@ struct BTreeLeaf : public BTreeLeafBase {
 //    return (*base<k)+base-keys;
 //  }
 
-  void insert(Key &k,std::string &p) {
+  void insert(Key &k,Payload &p) {
     assert(count + 1 <= MaxLeafEntries);
     if (count) {
       unsigned pos = lowerBound(k);
@@ -404,7 +407,7 @@ struct BTreeLeaf : public BTreeLeafBase {
       uint16_t new_prefix_len = k.commonPrefix(prefix_key_);
       k.chunkBeginning(new_prefix_len);
       keys[pos] = k;
-      payloads[pos] = p.c_str();
+      payloads[pos] = p;
       count++;
       // decide if we need to modify all the other keys
       if (new_prefix_len == prefix_key_.getLen()) {
@@ -426,7 +429,7 @@ struct BTreeLeaf : public BTreeLeafBase {
       prefix_key_.setKeyStr(k.getKeyStr(), k.getLen());
       k.setKeyStr("", 0);
       keys[0] = k;
-      payloads[0] = p.c_str();
+      payloads[0] = p;
       count++;
     }
   }
@@ -435,12 +438,12 @@ struct BTreeLeaf : public BTreeLeafBase {
     BTreeLeaf* newLeaf = new BTreeLeaf();
     newLeaf->count = count-(count/2);
     count = count-newLeaf->count;
-    memcpy(newLeaf->keys, keys+count, sizeof(Key)*newLeaf->count);
-    memset(keys + count, 0, sizeof(Key)*newLeaf->count);
     newLeaf->prefix_key_ = prefix_key_;
 
     for (int i = 0; i < newLeaf->count; i++) {
-      newLeaf->payloads[i] = payloads[i + count].c_str();
+      newLeaf->keys[i] = keys[i+count];
+      keys[i+count] = Key();
+      newLeaf->payloads[i] = payloads[i + count];
     }
 
     // update common prefix
@@ -501,7 +504,7 @@ struct BTreeInner : public BTreeInnerBase {
       if (children[i]->type == PageType::BTreeInner) {
         delete reinterpret_cast<BTreeInner *>(children[i]);
       } else {
-        delete reinterpret_cast<BTreeLeaf *>(children[i]);
+        delete children[i];
       }
     }
   }
@@ -558,11 +561,12 @@ struct BTreeInner : public BTreeInnerBase {
     // Concatenate to get the full key
     sep = prefix_key_.concate(right);
 
-    memcpy(newInner->keys,keys+count+1,sizeof(Key)*(newInner->count+1));
-    memset(keys + count + 1, 0, sizeof(Key) * (newInner->count+1));
-//    for (int i = 0; i < newInner->count + 1; i++) {
-//      newInner->keys[i] = keys[i + count + 1];
-//    }
+    memcpy(newInner->keys,keys+count+1,sizeof(Key)*(newInner->count));
+    memset(keys + count + 1, 0, sizeof(Key) * (newInner->count));
+    //for (int i = 0; i < newInner->count; i++) {
+    //  newInner->keys[i] = keys[i + count + 1];
+    //  keys[i + count + 1] = Key();
+    //}
     memcpy(newInner->children,children+count+1,sizeof(NodeBase*)*(newInner->count+1));
     newInner->prefix_key_ = prefix_key_;
 
@@ -633,12 +637,12 @@ struct BTreeInner : public BTreeInnerBase {
   }
 };
 
-
+template <class Payload>
 struct BTree {
   std::atomic<NodeBase*> root;
 
   BTree() {
-    root = new BTreeLeaf();
+    root = new BTreeLeaf<Payload>();
   }
 
   ~BTree() {
@@ -664,7 +668,7 @@ struct BTree {
       _mm_pause();
   }
 
-  void insert(Key &k, std::string &v) {
+  void insert(Key k, Payload v) {
     int restartCount = 0;
     restart:
     if (restartCount++)
@@ -728,7 +732,7 @@ struct BTree {
       if (needRestart) goto restart;
     }
 
-    auto leaf = static_cast<BTreeLeaf *>(node);
+    auto leaf = static_cast<BTreeLeaf <Payload> *>(node);
 
     // Split leaf if full
     if (leaf->count == MaxLeafEntries) {
@@ -747,7 +751,7 @@ struct BTree {
         goto restart;
       }
       // Split
-      Key sep; BTreeLeaf *newLeaf = leaf->split(sep);
+      Key sep; BTreeLeaf <Payload>*newLeaf = leaf->split(sep);
       if (parent)
         parent->insert(sep, newLeaf);
       else
@@ -774,7 +778,7 @@ struct BTree {
     }
   }
 
-  bool lookup(Key k, std::string &result) {
+  bool lookup(Key k, Payload &result) {
     int restartCount = 0;
     restart:
     if (restartCount++)
@@ -787,7 +791,7 @@ struct BTree {
 
     // Parent of current node
     BTreeInner *parent = nullptr;
-    uint64_t versionParent;
+    uint64_t versionParent = 0;
 
     while (node->type==PageType::BTreeInner) {
       auto inner = static_cast<BTreeInner *>(node);
@@ -807,7 +811,7 @@ struct BTree {
       if (needRestart) goto restart;
     }
 
-    BTreeLeaf *leaf = static_cast<BTreeLeaf *>(node);
+    BTreeLeaf <Payload>*leaf = static_cast<BTreeLeaf <Payload>*>(node);
     unsigned pos = leaf->lowerBound(k);
     bool success = false;
     int cmp = k.compare(leaf->keys[pos], leaf->prefix_key_);
@@ -858,13 +862,13 @@ struct BTree {
       if (needRestart) goto restart;
     }
 
-    BTreeLeaf *leaf = static_cast<BTreeLeaf *>(node);
+    BTreeLeaf <Payload>*leaf = static_cast<BTreeLeaf <Payload>*>(node);
     unsigned pos = leaf->lowerBound(k);
     int count = 0;
     for (unsigned i=pos; i<leaf->count; i++) {
       if (count==range)
         break;
-      output[count++] = leaf->payloads[i].c_str();
+      output[count++] = leaf->payloads[i];
     }
 
     if (parent) {
@@ -916,7 +920,7 @@ struct BTree {
           node_cnt++;
         }
       } else {
-        auto node = reinterpret_cast<BTreeLeaf *>(top);
+        auto node = reinterpret_cast<BTreeLeaf <Payload>*>(top);
         prefix_size += node->prefix_key_.getSize();
 
         prefix_byte_size += node->prefix_key_.getLen() * node->count;
@@ -929,6 +933,7 @@ struct BTree {
       q.pop();
     }
     std::cout << "---------------Compressed B tree----------------------" << std::endl;
+    std::cout << "Btree size = " << size * 1.0 / 1000000.0 << " MB" << std::endl;
     std::cout << "Max Height = " << max_hei << std::endl;
     std::cout << "Max Prefix Len = " << max_prefix_len << std::endl;
     std::cout << "Avg Prefix Len = " << 1.0 * avg_internal_prefix / internal_node_num << std::endl;
