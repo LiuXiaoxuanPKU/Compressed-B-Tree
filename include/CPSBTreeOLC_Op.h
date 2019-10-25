@@ -276,56 +276,6 @@ class Key {
     setLen(cur_len + 1);
   }
 
-  void addTailStr(const char *str, uint16_t len) {
-    if (len == 0)
-      return;
-    uint16_t cur_len = getLen();
-    uint16_t new_len = cur_len + len;
-    // already overflow
-    if (cur_len > POINTER_SIZE) {
-      char *overflow_key = *reinterpret_cast<char **>(key);
-      char *new_overflow_key = new char[cur_len + len];
-      memcpy(new_overflow_key, overflow_key, cur_len);
-      memcpy(new_overflow_key + cur_len, str, len);
-      memcpy(key, &new_overflow_key, POINTER_SIZE);
-      delete []overflow_key;
-    } else if (new_len > POINTER_SIZE) {
-      // overflow
-      char *overflow_key = new char[POINTER_SIZE + len];
-      memcpy(overflow_key, key, POINTER_SIZE);
-      memcpy(overflow_key + cur_len, str, len);
-      memcpy(key, &overflow_key, POINTER_SIZE);
-    } else {
-      // no overflow
-      memcpy(key + cur_len, str, len);
-    }
-    setLen(cur_len + len);
-  }
-
-  void addHeadStr(const char *str, uint16_t len) {
-    if (len == 0)
-      return;
-    uint16_t cur_len = getLen();
-    uint16_t new_len = cur_len + len;
-    if (cur_len > POINTER_SIZE) {
-      char *overflow_key =  *reinterpret_cast<char **>(key);
-      char *new_overflow_key = new char[new_len];
-      memcpy(new_overflow_key, str, len);
-      memcpy(new_overflow_key + len, overflow_key, cur_len);
-      delete []overflow_key;
-      memcpy(key, &new_overflow_key, POINTER_SIZE);
-    } else if (new_len > POINTER_SIZE) {
-      char *new_overflow_key = new char[new_len];
-      memcpy(new_overflow_key, str, len);
-      memcpy(new_overflow_key + len, key, cur_len);
-      memcpy(key, &new_overflow_key, POINTER_SIZE);
-    } else {
-      memmove(key + len, key, cur_len);
-      memcpy(key, str, len);
-    }
-    setLen(new_len);
-  }
-
   void addHeadChar(const char &new_c) {
     uint16_t cur_len = getLen();
     // already overflow
@@ -477,13 +427,14 @@ struct BTreeLeaf : public BTreeLeafBase {
         // modify all the keys, add the last several bytes of prefix to those keys
         assert(new_prefix_len < prefix_key_.getLen());
         uint16_t prefix_len = prefix_key_.getLen();
-        const char *prefix_str = prefix_key_.getKeyStr();
-        for (int i = 0; i < count; i++) {
-          if (i == (int)pos)
-            continue;
-          keys[i].addHeadStr(prefix_str + new_prefix_len, prefix_len - new_prefix_len);
+        for (int i = new_prefix_len; i < prefix_len; i++) {
+          for (int j = 0; j < count; j++) {
+            if (j == (int)pos)
+              continue;
+            keys[j].addHead(prefix_key_);
+          }
+          prefix_key_.chunkToLength(prefix_key_.getLen() - 1);
         }
-        prefix_key_.chunkToLength(new_prefix_len);
       }
     } else {
       prefix_key_.setKeyStr(k.getKeyStr(), k.getLen());
@@ -628,6 +579,7 @@ struct BTreeInner : public BTreeInnerBase {
     //  keys[i + count + 1] = Key();
     //}
     memcpy(newInner->children,children+count+1,sizeof(NodeBase*)*(newInner->count+1));
+    newInner->prefix_key_ = prefix_key_;
 
     // update common prefix
     assert(count > 0);
@@ -637,9 +589,8 @@ struct BTreeInner : public BTreeInnerBase {
     }
 
     uint16_t  new_prefix_len = tmp.getLen();
-    newInner->prefix_key_ = prefix_key_;
-    newInner->prefix_key_.addTailStr(keys[0].getKeyStr(), new_prefix_len);
     for (int i = 0; i < new_prefix_len; i++) {
+      prefix_key_.addTailChar(keys[0].getKeyStr()[0]);
       for (int j = 0; j < count; j++)
         keys[j].removeHead();
     }
@@ -652,8 +603,8 @@ struct BTreeInner : public BTreeInnerBase {
     }
 
     uint16_t  nl_new_prefix_len = tmp2.getLen();
-    newInner->prefix_key_.addTailStr(newInner->keys[0].getKeyStr(), nl_new_prefix_len);
     for (int i = 0; i < nl_new_prefix_len; i++) {
+      newInner->prefix_key_.addTailChar(newInner->keys[0].getKeyStr()[0]);
       for (int j = 0; j < newInner->count; j++)
         newInner->keys[j].removeHead();
     }
@@ -684,14 +635,14 @@ struct BTreeInner : public BTreeInnerBase {
       // modify all the keys, add the last several bytes of prefix to those keys
       assert(new_prefix_len < prefix_key_.getLen());
       uint16_t prefix_len = prefix_key_.getLen();
-      const char *prefix_str = prefix_key_.getKeyStr();
-      for (int j = 0; j < count; j++) {
-        if (j == (int)pos)
-          continue;
-        keys[j].addHeadStr(prefix_str + new_prefix_len, prefix_len - new_prefix_len);
+      for (int i = new_prefix_len; i < prefix_len; i++) {
+        for (int j = 0; j < count; j++) {
+          if (j == (int)pos)
+            continue;
+          keys[j].addHead(prefix_key_);
+        }
+        prefix_key_.chunkToLength(prefix_key_.getLen() - 1);
       }
-      prefix_key_.chunkToLength(new_prefix_len);
-
     }
     std::swap(children[pos],children[pos+1]);
   }
