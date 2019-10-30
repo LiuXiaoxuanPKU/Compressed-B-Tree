@@ -213,7 +213,7 @@ class Key {
 
 
   int charStrCmp(const char *s1, int len1, const char *s2, int len2) {
-    int len = min(len1, len2);
+    int len = std::min(len1, len2);
     for (int i = 0; i < len; i++) {
         uint8_t c1 = static_cast<uint8_t >(s1[i]);
         uint8_t c2 = static_cast<uint8_t >(s2[i]);
@@ -987,7 +987,7 @@ struct BTree {
     return size;
   }
 
-  void getSubstrings(std::vector<std::string> substrings) {
+  void getSubstrings(std::vector<std::string> &substrings) {
     std::queue<NodeBase *> q;
     q.push(root.load());
     while (!q.empty()) {
