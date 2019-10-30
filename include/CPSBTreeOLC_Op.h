@@ -994,11 +994,7 @@ struct BTree {
       NodeBase *top = q.front();
       if (top->type == PageType::BTreeInner) {
         auto inner = reinterpret_cast<BTreeInner *>(top);
-        if (inner->prefix_key_.getLen() > 0) {
-          substrings.emplace_back(inner->prefix_key_.getKeyStr(), inner->prefix_key_.getLen());
-        }
         for (int i = 0; i < (int)inner->count; i++) {
-          substrings.emplace_back(inner->keys[i].getKeyStr(), inner->keys[i].getLen());
           q.push(inner->children[i]);
         }
       } else {
