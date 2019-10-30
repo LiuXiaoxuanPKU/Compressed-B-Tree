@@ -1003,6 +1003,13 @@ struct BTree {
         for (int i = 0; i <= (int)inner->count; i++) {
           q.push(inner->children[i]);
         }
+
+        if (inner->prefix_key_.getLen() > 0) {
+          substrings.emplace_back(inner->prefix_key_.getKeyStr(), inner->prefix_key_.getLen());
+        }
+        for (int i = 0; i < (int)inner->count; i++) {
+          substrings.emplace_back(inner->keys[i].getKeyStr(), inner->keys[i].getLen());
+        }
       } else {
         auto leaf = reinterpret_cast<BTreeLeaf <Payload>*>(top);
         if (leaf->prefix_key_.getLen() > 0) {
