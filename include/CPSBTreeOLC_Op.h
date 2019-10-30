@@ -930,6 +930,8 @@ struct BTree {
     int64_t internal_node_num = 0;
     int64_t internal_node_size = 0;
     int64_t leaf_node_size = 0;
+    int64_t leaf_key_size = 0;
+
     int max_hei = 0;
     int max_prefix_len = 0;
     int avg_internal_prefix = 0;
@@ -966,6 +968,9 @@ struct BTree {
         leaf_node_size += node->getSize();
         leaf_key_num += node->count;
         max_prefix_len = std::max((int)node->prefix_key_.getLen(), max_prefix_len);
+        for (int i = 0; i < node->count; i++) {
+          leaf_key_size += max(8, node->keys[i].getLen());
+        }
       }
       q.pop();
     }
@@ -977,6 +982,7 @@ struct BTree {
     std::cout << "Leaf Prefix node size = " << prefix_size << std::endl;
     std::cout << "Leaf waste size = " << leaf_waste_byte << std::endl;
     std::cout << "Leaf Key Num = " << leaf_key_num << std::endl;
+    std::cout << "Leaf Key Size = " << leaf_key_size << std::endl;
     std::cout << "Node Num = " << node_cnt << std::endl;
     std::cout << "Internal Node Num = " << internal_node_num << ", total size = " << internal_node_size << std::endl;
     std::cout << "Leaf Node Num = " << node_cnt - internal_node_num << ", total size = " << leaf_node_size << std::endl;
