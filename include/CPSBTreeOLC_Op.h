@@ -969,7 +969,7 @@ struct BTree {
         leaf_key_num += node->count;
         max_prefix_len = std::max((int)node->prefix_key_.getLen(), max_prefix_len);
         for (int i = 0; i < node->count; i++) {
-          leaf_key_size += node->keys[i].getLen() > 8 ? node->keys[i].getLen() : 8;
+          leaf_key_size += node->keys[i].getSize();
         }
       }
       q.pop();
