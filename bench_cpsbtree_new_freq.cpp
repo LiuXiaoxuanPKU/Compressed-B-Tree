@@ -257,8 +257,14 @@ void exec(const int expt_id, const int wkld_id, const bool is_point,
     int64_t total_key_size = 0;
     double start_time = getNow();
     if (is_compressed) {
+        auto sample_bt = new cpsbtreeolc::BTree<int64_t>();
+        for (const std::string &key_sample : insert_keys_sample) {
+            sample_bt->insert(key_sample.c_str(), &key_sample);
+        }
+        std::vector<std::string> substring_samples;
+        sample_bt->get_substrings(substring_samples);
         encoder = ope::EncoderFactory::createEncoder(encoder_type, W);
-        encoder->build(insert_keys_sample, input_dict_size);
+        encoder->build(substring_samples, input_dict_size);
     }
 
     for (int i = 0; i < (int)insert_keys.size(); i++) {
