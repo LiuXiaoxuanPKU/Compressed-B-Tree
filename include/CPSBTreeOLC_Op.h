@@ -987,6 +987,32 @@ struct BTree {
     return size;
   }
 
+  void getSubstrings(std::vector<std::string> substrings) {
+    std::queue<NodeBase *> q;
+    q.push(root.load());
+    while (!q.empty()) {
+      NodeBase *top = q.front();
+      if (top->type == PageType::BTreeInner) {
+        auto inner = reinterpret_cast<BTreeInner *>(top);
+        if (inner->prefix_key_.getLen() > 0) {
+          substrings.emplace_back(inner->prefix_key_.getKeyStr(), inner->prefix_key_.getLen());
+        }
+        for (int i = 0; i < (int)inner->count; i++) {
+          substrings.emplace_back(inner->keys[i].getKeyStr(), inner->keys[i].getLen());
+          q.push(inner->children[i]);
+        }
+      } else {
+        auto leaf = reinterpret_cast<BTreeLeaf <Payload>*>(top);
+        if (leaf->prefix_key_.getLen() > 0) {
+          substrings.emplace_back(leaf->prefix_key_.getKeyStr(), leaf->prefix_key_.getLen());
+        }
+        for (int i = 0; i < (int)leaf->count; i++) {
+          substrings.emplace_back(leaf->keys[i].getKeyStr(), leaf->keys[i].getLen());
+        }
+      }
+      q.pop();
+    }
+  }
 };
 
 }

@@ -262,7 +262,7 @@ void exec(const int expt_id, const int wkld_id, const bool is_point,
             sample_bt->insert(key_sample.c_str(), &key_sample);
         }
         std::vector<std::string> substring_samples;
-        sample_bt->get_substrings(substring_samples);
+        sample_bt->getSubstrings(substring_samples);
         encoder = ope::EncoderFactory::createEncoder(encoder_type, W);
         encoder->build(substring_samples, input_dict_size);
     }
