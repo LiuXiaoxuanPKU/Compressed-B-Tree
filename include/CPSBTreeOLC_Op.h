@@ -15,8 +15,8 @@ namespace cpsbtreeolc {
 enum class PageType : uint8_t { BTreeInner=1, BTreeLeaf=2 };
 
 static const uint8_t POINTER_SIZE = 8;
-static const int MaxEntries = 50;
-static const int MaxLeafEntries = 50;
+static const int MaxEntries = 8;
+static const int MaxLeafEntries = 8;
 static int64_t leaf_waste_byte = 0;
 
 struct OptLock {
@@ -119,9 +119,9 @@ class Key {
   void printKeyStr() {
     const char *str = getKeyStr();
     uint16_t str_len = getLen();
-    std::cout << str_len << " ";
+    std::cout << str_len << "|";
     for (int  i = 0; i < str_len; i++) {
-      std::cout << str[i];
+      std::cout << unsigned(uint8_t(str[i])) << " ";
     }
   }
 
@@ -211,6 +211,25 @@ class Key {
     return key;
   }
 
+
+  int charStrCmp(const char *s1, int len1, const char *s2, int len2) {
+    int len = min(len1, len2);
+    for (int i = 0; i < len; i++) {
+        uint8_t c1 = static_cast<uint8_t >(s1[i]);
+        uint8_t c2 = static_cast<uint8_t >(s2[i]);
+        if (c1 < c2)
+            return -1;
+        if (c1 > c2)
+            return 1;
+    }
+    if (len1 < len2)
+        return -1;
+    else if (len1 == len2)
+        return 0;
+    else
+        return 1;
+  }
+
   int compare(Key &right, Key &prefix) {
     uint16_t mylen = getLen();
     uint16_t prefix_len = prefix.getLen();
@@ -218,22 +237,17 @@ class Key {
     const char *prefix_str = prefix.getKeyStr();
 
     if (mylen < prefix_len) {
-      int cmp = strncmp(cur_str, prefix_str, mylen);
-      if (cmp != 0) return cmp; else return -1;
+      return charStrCmp(cur_str, mylen, prefix_str, prefix_len);
     } else if (mylen == prefix_len) {
-      int cmp = strncmp(cur_str, prefix_str, mylen);
+      int cmp = charStrCmp(cur_str, mylen, prefix_str, prefix_len);
       if (cmp != 0) return cmp;
       if (right.getLen() == 0) return 0;
       return -1;
-    } else {
-      int cmp = strncmp(cur_str, prefix_str, prefix_len);
+    } else { // mylen > prefix_len
+      int cmp = charStrCmp(cur_str, prefix_len, prefix_str, prefix_len);
       if (cmp == 0 ) {
         int right_len = right.getLen();
-        int right_cmp = strncmp(cur_str + prefix_len, right.getKeyStr(), std::min(right_len, mylen - prefix_len));
-        if (right_cmp != 0 ) return right_cmp;
-        if (mylen - prefix_len > right_len) return 1;
-        if (mylen - prefix_len == right_len) return 0;
-        return -1;
+        return charStrCmp(cur_str + prefix_len, mylen - prefix_len, right.getKeyStr(), right_len);
       } else
         return cmp;
     }
@@ -825,6 +839,18 @@ struct BTree {
     BTreeLeaf <Payload>*leaf = static_cast<BTreeLeaf <Payload>*>(node);
     unsigned pos = leaf->lowerBound(k);
     bool success = false;
+    if (pos == leaf->count) {
+        std::cout << "Current Key" << std::endl;
+        k.printKeyStr();
+        std::cout << std::endl;
+        std::cout << "Prefix" << std::endl;
+        leaf->prefix_key_.printKeyStr();
+        std::cout << std::endl;
+        std::cout << "Last Leaf Key" << std::endl;
+        leaf->keys[leaf->count-1].printKeyStr();
+        std::cout << std::endl;
+        assert(false);
+    }
     int cmp = k.compare(leaf->keys[pos], leaf->prefix_key_);
     if ((pos<leaf->count) && (cmp == 0)) {
       success = true;
