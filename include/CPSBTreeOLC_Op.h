@@ -500,9 +500,27 @@ struct BTreeLeaf : public BTreeLeafBase {
     }
 
 
-    Key &right = keys[count - 1];
+//    Key &right = keys[count - 1];
+//    // Concatenate to get the full key
+//    sep = prefix_key_.concate(right);
+
+    Key &left = keys[count - 1];
+
     // Concatenate to get the full key
-    sep = prefix_key_.concate(right);
+    sep = prefix_key_.concate(left);
+    Key right = newLeaf->prefix_key_.concate(newLeaf->keys[0]);
+    int prefix_len = sep.commonPrefix(right);
+
+    if (prefix_len + 1 >= sep.getLen() || prefix_len + 1 >= right.getLen()) {
+      return newLeaf;
+    }
+
+    //std::cout << prefix_len << " " << sep.getLen() << "----" << std::endl;
+    //sep.chunkToLength(prefix_len + 2);
+    right.chunkToLength(prefix_len + 1);
+    sep = right;
+    //sep = prefix_key_.concate(left);
+
     return newLeaf;
   }
 };
