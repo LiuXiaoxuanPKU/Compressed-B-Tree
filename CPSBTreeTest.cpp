@@ -6,7 +6,7 @@
 #include "include/BTreeOLC.h"
 #include "include/tlx/btree_map.hpp"
 
-static const std::string email_dir = "/Users/xiaoxuanliu/Documents/Research/OPE/datasets/emails.txt";
+static const std::string email_dir = "/Users/xiaoxuanliu/Documents/Research/OPE_dataset/emails.txt";
 
 double getNow() {
   struct timeval tv;
@@ -22,7 +22,7 @@ int64_t loadKeys(const std::string& file_name,
   std::string key;
   total_len = 0;
   int cnt = 0;
-  while (infile.good() && cnt < 1000) {
+  while (infile.good() && cnt < 25000000) {
     infile >> key;
     cnt++;
     keys.push_back(key);
@@ -41,7 +41,7 @@ int main() {
   std::vector<std::string> emails_shuffle;
   int64_t total_key_len = 0;
   loadKeys(email_dir, emails, emails_shuffle, total_key_len);
-  auto cpstree = new cpsbtreeolc::BTree();
+  auto cpstree = new cpsbtreeolc::BTree<std::string>();
   auto btree = new btreeolc::BTree<std::string, std::string>();
   typedef tlx::btree_map<std::string, std::string, std::less<std::string> > btree_type;
   btree_type* tlx_btree = new btree_type();
@@ -53,6 +53,15 @@ int main() {
     cpsbtreeolc::Key key;
     key.setKeyStr(email.c_str(), email.length());
     cpstree->insert(key, email);
+    //std::cout << email << std::endl;
+  }
+//  cpstree->truncateSuffix();
+  std::cout << "---------------------" << std::endl;
+  std::vector<std::string> results;
+  cpstree->getSubstrings(results);
+  std::cout << results.size() << "***" << std::endl;
+  for (const std::string r : results) {
+  //  std::cout << r << std::endl;
   }
   double cps_insert_end = getNow();
   double cps_tput = insert_cnt / (cps_insert_end - cps_insert_start) / 1000000; // M items / s
@@ -70,7 +79,7 @@ int main() {
   double tlxbtree_insert_start = getNow();
   for (const auto &email : emails_shuffle) {
     insert_cnt++;
-//    tlx_btree->insert2(email, email);
+    tlx_btree->insert2(email, email);
   }
   double tlxbtree_insert_end = getNow();
   double tlxbtree_tput = insert_cnt / (tlxbtree_insert_end - tlxbtree_insert_start) / 1000000; // M items / s
@@ -102,9 +111,18 @@ int main() {
   lookup_cnt = 0;
   double victor_lookup_start = getNow();
   for (const auto &email : emails) {
-    lookup_cnt++;
+//    lookup_cnt++;
 //    std::string btreevalue;
+//    std::string results[15];
 //    btree->lookup(email, btreevalue);
+//    int cnt = btree->scan(email, 10, results);
+//    if (cnt != 10) {
+//      std::cout << cnt << std::endl;
+//      std::cout << email << std::endl;
+//      for (int i = 0; i < cnt; i++) {
+//        std::cout << results[i] << std::endl;
+//      }
+//    }
 //    assert(btreevalue.compare(email) == 0);
   }
   double victor_lookup_end = getNow();
@@ -114,10 +132,10 @@ int main() {
   double tlx_lookup_start = getNow();
   for (const auto &email : emails) {
     lookup_cnt++;
-//    std::string tlxvalue;
-//    cpsbtreeolc::Key key;
-//    auto it = tlx_btree->find(email);
-//    assert((it->second).compare(email) == 0);
+    std::string tlxvalue;
+    cpsbtreeolc::Key key;
+    auto it = tlx_btree->find(email);
+    assert((it->second).compare(email) == 0);
   }
   double tlx_lookup_end = getNow();
   double tlx_lookup_tput = lookup_cnt / (tlx_lookup_end - tlx_lookup_start) / 1000000;
