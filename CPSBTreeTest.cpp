@@ -22,7 +22,7 @@ int64_t loadKeys(const std::string& file_name,
   std::string key;
   total_len = 0;
   int cnt = 0;
-  while (infile.good() && cnt < 25000000) {
+  while (infile.good() && cnt < 2000000) {
     infile >> key;
     cnt++;
     keys.push_back(key);
@@ -48,7 +48,7 @@ int main() {
 
   int insert_cnt = 0;
   double cps_insert_start = getNow();
-  for (auto &email : emails_shuffle) {
+  for (auto &email : emails) {
     insert_cnt++;
     cpsbtreeolc::Key key;
     key.setKeyStr(email.c_str(), email.length());
@@ -65,6 +65,18 @@ int main() {
   }
   double cps_insert_end = getNow();
   double cps_tput = insert_cnt / (cps_insert_end - cps_insert_start) / 1000000; // M items / s
+
+
+  for (int j = 0; j < (int)emails.size(); j++) {
+    std::string email = emails[j];
+    cpsbtreeolc::Key k;
+    k.setKeyStr(email.c_str(), email.length());
+    std::string result[10];
+    cpstree->rangeScan(k, 10, result);
+    for (int i = 0; i < 10; i++) {
+      assert(result[i] == emails[j+i]);
+    }
+  }
 
   insert_cnt = 0;
   double btree_insert_start = getNow();
