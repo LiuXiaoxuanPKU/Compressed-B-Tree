@@ -9,6 +9,7 @@
 #include <queue>
 #include <string>
 #include <utility>
+#include <stack>
 
 namespace cpsbtreeolc {
 
@@ -681,7 +682,63 @@ struct BTreeInner : public BTreeInnerBase {
 };
 
 template <class Payload>
-struct BTree {
+class BTreeIterator {
+ private:
+  std::stack<std::pair<NodeBase *, uint16_t >> s_;
+  BTreeLeaf<Payload> *pushAll(NodeBase *node) {
+    while (true) {
+      s_.push(std::make_pair(node, 0));
+      if (node->type == PageType::BTreeLeaf) {
+        return reinterpret_cast<BTreeLeaf <Payload>*>(node);
+      }
+      auto inner = reinterpret_cast<BTreeInner*>(node);
+      node = inner->children[0];
+    }
+  }
+
+ public:
+  BTreeIterator(NodeBase *root, Key k) {
+    NodeBase *node = root;
+    while (node->type==PageType::BTreeInner) {
+      auto inner = static_cast<BTreeInner *>(node);
+      uint16_t id = inner->lowerBound(k);
+      s_.push(std::make_pair(node, id));
+      node = inner->children[id];
+    }
+
+    auto leaf = static_cast<BTreeLeaf <Payload>*>(node);
+    unsigned pos = leaf->lowerBound(k);
+    s_.push(std::make_pair(leaf, pos));
+  }
+
+  Payload *next() {
+    std::pair<NodeBase *, uint16_t > p = s_.top();
+    s_.pop();
+    auto leaf = reinterpret_cast<BTreeLeaf<Payload> *>(p.first);
+    int cur_idx = p.second;
+    if (cur_idx < p.first->count) {
+      s_.push(std::make_pair(leaf, cur_idx + 1));
+      return &leaf->payloads[cur_idx];
+    }
+
+    while (!s_.empty()) {
+      std::pair<NodeBase *, uint16_t > parent_p = s_.top();
+      s_.pop();
+      if (parent_p.second < parent_p.first->count) {
+        BTreeInner *parent = reinterpret_cast<BTreeInner *>(parent_p.first);
+        NodeBase *next = parent->children[parent_p.second + 1];
+        s_.push(std::make_pair(parent, parent_p.second + 1));
+        BTreeLeaf<Payload> *leaf = pushAll(next);
+        return this->next();
+      }
+    }
+    return NULL;
+  }
+};
+
+template <class Payload>
+class BTree {
+ public:
   std::atomic<NodeBase*> root;
 
   BTree() {
@@ -882,6 +939,18 @@ struct BTree {
     if (needRestart) goto restart;
 
     return success;
+  }
+
+  uint16_t rangeScan(Key k, int range, Payload *output) {
+    auto it = new BTreeIterator<Payload>(root, k);
+    uint16_t cnt = 0;
+    while (cnt < range ) {
+      Payload *v = it->next();
+      if (v == NULL)
+        break;
+      output[cnt++] = *v;
+    }
+    return cnt;
   }
 
   uint64_t scan(Key k, int range, std::string *output) {
