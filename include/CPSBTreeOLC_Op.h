@@ -722,13 +722,13 @@ class BTreeIterator {
     }
 
     while (!s_.empty()) {
-      std::pair<NodeBase *, uint16_t > parent_p = s_.top();
+      std::pair<NodeBase *, uint16_t >& parent_p = s_.top();
       s_.pop();
       if (parent_p.second < parent_p.first->count) {
         BTreeInner *parent = reinterpret_cast<BTreeInner *>(parent_p.first);
         NodeBase *next = parent->children[parent_p.second + 1];
         s_.push(std::make_pair(parent, parent_p.second + 1));
-        BTreeLeaf<Payload> *leaf = pushAll(next);
+        pushAll(next);
         return this->next();
       }
     }
