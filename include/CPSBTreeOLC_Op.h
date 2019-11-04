@@ -697,7 +697,9 @@ class BTreeIterator {
   }
 
  public:
+
   BTreeIterator(NodeBase *root, Key k) {
+    int steps = 0;
     NodeBase *node = root;
     while (node->type==PageType::BTreeInner) {
       auto inner = static_cast<BTreeInner *>(node);
@@ -712,6 +714,7 @@ class BTreeIterator {
   }
 
   Payload *next() {
+    steps += 1;
     std::pair<NodeBase *, uint16_t > p = s_.top();
     s_.pop();
     auto leaf = reinterpret_cast<BTreeLeaf<Payload> *>(p.first);
@@ -725,6 +728,7 @@ class BTreeIterator {
       std::pair<NodeBase *, uint16_t >& parent_p = s_.top();
       s_.pop();
       if (parent_p.second < parent_p.first->count) {
+        steps += 1;
         BTreeInner *parent = reinterpret_cast<BTreeInner *>(parent_p.first);
         NodeBase *next = parent->children[parent_p.second + 1];
         s_.push(std::make_pair(parent, parent_p.second + 1));
