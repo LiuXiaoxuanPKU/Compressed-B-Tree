@@ -697,9 +697,8 @@ class BTreeIterator {
   }
 
  public:
-
+  int steps = 0;
   BTreeIterator(NodeBase *root, Key k) {
-    int steps = 0;
     NodeBase *node = root;
     while (node->type==PageType::BTreeInner) {
       auto inner = static_cast<BTreeInner *>(node);
@@ -744,6 +743,7 @@ template <class Payload>
 class BTree {
  public:
   std::atomic<NodeBase*> root;
+  int debug_steps = 0;
 
   BTree() {
     root = new BTreeLeaf<Payload>();
@@ -954,6 +954,7 @@ class BTree {
         break;
       output[cnt++] = *v;
     }
+    debug_steps += it->steps;
     return cnt;
   }
 
